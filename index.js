@@ -14,31 +14,6 @@ function parseTokenByMock() {
     };
 }
 
-function * parseToken(token) {
-    if (token) {
-        return config.mock ? parseTokenByMock() : (yield parseTokenBySSO(token)).body;
-    } else {
-        return {
-            isSuccess: false
-        }
-    }
-}
-
-function * setUserByToken(context) {
-    let token = context.cookies.get('token');
-
-    let result = yield parseToken(token);
-
-    if (result.isSuccess) {
-        setUser(context, {
-            member_id: result.result.member_id,
-            token: token
-        });
-    } else {
-        delete context.state.user;
-    }
-}
-
 function redirectToSignInPagae() {
     this.redirect('/sign-in?return_url=' + encodeURIComponent(this.request.originalUrl));
 }
@@ -56,6 +31,40 @@ function guideToSignInPage() {
 }
 
 module.exports = function (config) {
+    function setUser(context, data) {
+        context.state.user = {
+            member_id: data.member_id,
+            token: data.token,
+
+            isAdmin: config.admins.indexOf(data.member_id) >= 0
+        };
+    }
+
+    function * setUserByToken(context) {
+        let token = context.cookies.get('token');
+
+        let result = yield parseToken(token);
+
+        if (result.isSuccess) {
+            setUser(context, {
+                member_id: result.result.member_id,
+                token: token
+            });
+        } else {
+            delete context.state.user;
+        }
+    }
+
+    function * parseToken(token) {
+        if (token) {
+            return config.mock ? parseTokenByMock() : (yield parseTokenBySSO(token)).body;
+        } else {
+            return {
+                isSuccess: false
+            }
+        }
+    }
+
     function * parseTokenBySSO(token) {
         return yield request({
             uri: 'http://' + config.sso.inner.host + ':' + config.sso.inner.port + '/token/parse',
@@ -73,12 +82,7 @@ module.exports = function (config) {
         },
 
         setUser: function *(context, data) {
-            context.state.user = {
-                member_id: data.member_id,
-                token: data.token,
-
-                isAdmin: config.admins.indexOf(data.member_id) >= 0
-            };
+            yield setUser(context, data);
         },
 
         ensureAuthenticated: function *(next) {
