@@ -1,0 +1,7 @@
+{
+  "name": "koa-membership",
+  "version": "0.0.1",
+  "dependencies": {
+    "co-request": "^1.0.0"
+  }
+}
