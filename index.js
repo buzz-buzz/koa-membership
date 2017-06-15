@@ -40,9 +40,7 @@ module.exports = function (config) {
         };
     }
 
-    function * setUserByToken(context) {
-        let token = context.cookies.get('token');
-
+    function* parseTokenAndSetHcdUser(context, token) {
         let result = yield parseToken(token);
 
         if (result.isSuccess) {
@@ -55,7 +53,17 @@ module.exports = function (config) {
         }
     }
 
-    function * parseToken(token) {
+    function* getTokenAndSetUser(context) {
+        let token = context.query.token || context.cookies.get('token');
+
+        if (token) {
+            yield parseTokenAndSetHcdUser(context, token);
+        }
+
+        return token;
+    }
+
+    function* parseToken(token) {
         if (token) {
             return config.mock ? parseTokenByMock() : (yield parseTokenBySSO(token)).body;
         } else {
@@ -65,28 +73,28 @@ module.exports = function (config) {
         }
     }
 
-    function * parseTokenBySSO(token) {
+    function* parseTokenBySSO(token) {
         return yield request({
             uri: 'http://' + config.sso.inner.host + ':' + config.sso.inner.port + '/token/parse',
-            json: {token: token},
+            json: { token: token },
             method: 'POST'
         });
     }
 
     return {
-        setUserByToken: function *(next) {
+        setUserByToken: function* (next) {
             let context = this;
-            yield setUserByToken(context);
+            yield getTokenAndSetUser(context);
 
             yield next;
         },
 
-        setUser: function *(context, data) {
+        setUser: function* (context, data) {
             yield setUser(context, data);
         },
 
-        ensureAuthenticated: function *(next) {
-            yield setUserByToken(this);
+        ensureAuthenticated: function* (next) {
+            yield getTokenAndSetUser(this);
 
             if (this.state.user) {
                 yield next;
@@ -95,8 +103,8 @@ module.exports = function (config) {
             }
         },
 
-        ensureAdmin: function *(next) {
-            yield setUserByToken(this);
+        ensureAdmin: function* (next) {
+            yield getTokenAndSetUser(this);
 
             if (this.state.user && this.state.user.isAdmin) {
                 yield next;
